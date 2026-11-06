@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+
+{% block heading %}Create a bill{% endblock %}
+
+{% block head %}
+<script src="https://unpkg.com/html5-qrcode"></script>
+{% endblock %}
+
+{% block content %}
+<form method="POST" id="bill">
+    <div class="rowgrid">
+
+        <section class="panel">
+            <h3>Scan or search products</h3>
+
+            <button type="button" class="btn btn-outline-primary mb-2" id="scan">
+                Scan barcode
+            </button>
+
+            <div id="reader" class="scanner"></div>
+
+            <div class="d-flex gap-2">
+                <input class="form-control" id="search"
+                       placeholder="Product name or barcode">
+
+                <button class="btn btn-outline-secondary" type="button" id="add">
+                    Add
+                </button>
+            </div>
+
+            <table class="table mt-3" id="items">
+                <tr>
+                    <th>Product</th>
+                    <th>Price</th>
+                    <th>Qty</th>
+                    <th></th>
+                </tr>
+            </table>
+        </section>
+
+        <aside class="panel summary">
+            <h3>Bill summary</h3>
+
+            <!-- Customer selection -->
+            <label>Customer</label>
+            <select class="form-select mb-2" name="customer_id" id="customer_id">
+                <option value="">Walk-in</option>
+
+                {% for c in customers %}
+                <option value="{{ c.id }}">{{ c.name }}</option>
+                {% endfor %}
+
+                <option value="new">+ Add New Customer</option>
+            </select>
+
+            <!-- New customer form -->
+            <div id="newCustomerBox" class="border rounded p-3 mb-3" hidden>
+                <h5>Add New Customer</h5>
+
+                <label>Customer Name</label>
+                <input class="form-control mb-2" id="new_name"
+                       placeholder="Enter customer name">
+
+                <label>Phone Number</label>
+                <input class="form-control mb-2" id="new_phone"
+                       placeholder="Enter phone number">
+
+                <label>Email Address</label>
+                <input class="form-control mb-2" type="email" id="new_email"
+                       placeholder="Enter email address">
+
+                <button type="button" class="btn btn-success w-100"
+                        id="saveCustomer">
+                    Save Customer
+                </button>
+
+                <p id="customerMessage" class="mt-2 mb-0"></p>
+            </div>
+
+            <!-- Billing type -->
+            <label>Billing type</label>
+            <select class="form-select mb-2" name="kind" id="kind">
+                <option value="normal">Normal</option>
+                <option value="gst">GST</option>
+            </select>
+
+            <!-- Discount -->
+            <label>Discount ₹</label>
+            <input class="form-control mb-3"
+                   type="number" min="0" step="0.01"
+                   name="discount" id="discount" value="0">
+
+            <!-- Bill calculation -->
+            <p>Subtotal: <b id="subtotal">₹0.00</b></p>
+            <p>GST: <b id="tax">₹0.00</b></p>
+            <p class="total">
+                Total: <span id="total">₹0.00</span>
+            </p>
+
+            <button type="submit" class="btn btn-primary w-100" id="createBill">
+                Create bill & PDF
+            </button>
+        </aside>
+
+    </div>
+</form>
+
+<script>
+/* Product catalog */
+const catalog = {
+    {% for p in products %}
+    {{ p.id }}: {
+        id: {{ p.id }},
+        name: {{ p.name|tojson }},
+        barcode: {{ (p.barcode or '')|tojson }},
+        price: {{ p.price|float }},
+        gst: {{ p.gst|float }},
+        stock: {{ p.stock }}
+    },
+    {% endfor %}
+};
+
+/* Customer elements */
+const customerSelect = document.getElementById("customer_id");
+const customerBox = document.getElementById("newCustomerBox");
+const customerMessage = document.getElementById("customerMessage");
+
+/* Show or hide new customer form */
+customerSelect.addEventListener("change", function () {
+    customerBox.hidden = this.value !== "new";
+    customerMessage.textContent = "";
+});
+
+/* Save new customer */
+document.getElementById("saveCustomer").addEventListener("click", async function () {
+
+    const name = document.getElementById("new_name").value.trim();
+    const phone = document.getElementById("new_phone").value.trim();
+    const email = document.getElementById("new_email").value.trim();
+
+    if (!name) {
+        customerMessage.textContent = "Please enter the customer name.";
+        return;
+    }
+
+    this.disabled = true;
+    customerMessage.textContent = "Saving customer...";
+
+    try {
+        const response = await fetch(
+            "{{ url_for('add_billing_customer') }}",
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    name: name,
+                    phone: phone,
+                    email: email
+                })
+            }
+        );
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.error || "Could not save customer.");
+        }
+
+        /* Add customer to dropdown */
+        const option = document.createElement("option");
+        option.value = result.id;
+        option.textContent = result.name;
+
+        const newOption = customerSelect.querySelector('option[value="new"]');
+        customerSelect.insertBefore(option, newOption);
+
+        /* Automatically select new customer */
+        customerSelect.value = result.id;
+
+        /* Clear fields and hide form */
+        document.getElementById("new_name").value = "";
+        document.getElementById("new_phone").value = "";
+        document.getElementById("new_email").value = "";
+
+        customerBox.hidden = true;
+        customerMessage.textContent = "";
+
+    } catch (error) {
+        customerMessage.textContent = error.message;
+    } finally {
+        this.disabled = false;
+    }
+});
+</script>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/billing.js') }}"></script>
+{% endblock %}

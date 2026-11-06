@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block heading %}Invoice details{% endblock %}
+
+{% block content %}
+<div class="panel">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h2>{{ inv.number }}</h2>
+            <p>
+                {{ inv.created.strftime('%d %b %Y %I:%M %p') }}
+                · {{ inv.customer.name if inv.customer else 'Walk-in' }}
+            </p>
+        </div>
+
+        <div class="d-flex gap-2">
+            <a class="btn btn-primary"
+               href="{{ url_for('pdf', iid=inv.id) }}">
+                Download PDF
+            </a>
+
+            {% if inv.customer and inv.customer.email %}
+            <form method="POST"
+                  action="{{ url_for('email_invoice', iid=inv.id) }}">
+                <button type="submit" class="btn btn-success">
+                    Email Invoice
+                </button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+
+    <table class="table mt-3">
+        <tr>
+            <th>Product</th>
+            <th>Qty</th>
+            <th>Price</th>
+            <th>GST</th>
+            <th>Amount</th>
+        </tr>
+
+        {% for x in inv.items %}
+        <tr>
+            <td>{{ x.name }}</td>
+            <td>{{ x.qty }}</td>
+            <td>₹{{ x.price }}</td>
+            <td>{{ x.gst }}%</td>
+            <td>₹{{ x.amount }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+
+    <div class="text-end">
+        <p>Subtotal: ₹{{ inv.subtotal }}</p>
+        <p>Discount: ₹{{ inv.discount }}</p>
+        <p>GST: ₹{{ inv.tax }}</p>
+        <h3 class="text-success">Grand total: ₹{{ inv.total }}</h3>
+    </div>
+</div>
+{% endblock %}
